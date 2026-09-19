@@ -96,10 +96,7 @@ class Condition extends AbstractEntity
         $this->rules = $rules;
     }
 
-    /**
-     * @return Field|Page|null
-     */
-    public function getTargetField()
+    public function getTargetField(): Field|Page|null
     {
         $targetField = $this->targetField;
         if (is_numeric($targetField)) {

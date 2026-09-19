@@ -6,12 +6,14 @@ namespace In2code\PowermailCond\ViewHelpers;
 
 use In2code\Powermail\Domain\Model\Form;
 use In2code\PowermailCond\Service\ConditionService;
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 
 /**
- * Class ConditionsViewHelper
+ * Renders the condition state of a form as JSON, so the frontend JavaScript knows
+ * which fields and pages start out hidden.
  */
-class ConditionsViewHelper extends AbstractViewHelper
+final class ConditionsViewHelper extends AbstractViewHelper
 {
     protected ConditionService $conditionService;
 
@@ -20,30 +22,26 @@ class ConditionsViewHelper extends AbstractViewHelper
         $this->conditionService = $conditionService;
     }
 
-    public function initializeArguments()
+    public function initializeArguments(): void
     {
         parent::initializeArguments();
         $this->registerArgument('form', Form::class, 'Form', true);
     }
 
-    /**
-     * Returns Data Attribute Array to enable validation
-     *
-     * @return string
-     */
     public function render(): string
     {
-        /** @var Form $field */
+        /** @var Form $form */
         $form = $this->arguments['form'];
 
-        if ($this->renderingContext->getRequest()->getParsedBody()) {
-            $params = $this->renderingContext->getRequest()->getParsedBody()['tx_powermail_pi1'];
-        } else {
-            $params = ['mail' => ['form' => $form->getUid()]];
+        $params = ['mail' => ['form' => $form->getUid()]];
+        if ($this->renderingContext->hasAttribute(ServerRequestInterface::class)) {
+            $request = $this->renderingContext->getAttribute(ServerRequestInterface::class);
+            $parsedBody = $request instanceof ServerRequestInterface ? $request->getParsedBody() : null;
+            if (is_array($parsedBody) && isset($parsedBody['tx_powermail_pi1'])) {
+                $params = $parsedBody['tx_powermail_pi1'];
+            }
         }
 
-        $arguments = $this->conditionService->getArguments($params);
-
-        return json_encode($arguments, JSON_THROW_ON_ERROR);
+        return json_encode($this->conditionService->getArguments($params), JSON_THROW_ON_ERROR);
     }
 }

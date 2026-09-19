@@ -6,14 +6,10 @@ services:
 
   In2code\PowermailCond\:
     resource: '../Classes/*'
-    exclude: '../Classes/Domain/Model/*'
+    exclude: '../Classes/{Domain/Model,Event}/*'
 
   In2code\PowermailCond\UserFunc\GetPowermailFields:
     public: true
 
   In2code\PowermailCond\UserFunc\GetPowermailFormsWithoutConditionRelation:
     public: true
-
-  In2code\PowermailCond\Backend\Form\Element\Note:
-    arguments:
-      $data: []

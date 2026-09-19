@@ -13,7 +13,7 @@ page {
     10 {
       noTrimWrap = | data-condition-uri="|"|
       typolink {
-        parameter.data = TSFE:id
+        parameter.data = page:uid
         additionalParams = &type=3132
         returnLast = url
         forceAbsoluteUrl = 1
@@ -27,9 +27,8 @@ powermailCondition {
   typeNum = 3132
   config {
     disableAllHeaderCode = 1
-    xhtml_cleaning = 0
+    disablePrefixComment = 1
     admPanel = 0
-    no_cache = 1
     debug = 0
     additionalHeaders.10 {
       header = Content-type: application/json
@@ -37,12 +36,12 @@ powermailCondition {
     }
   }
 
-  10 = USER
+  10 = USER_INT
   10 {
     userFunc = TYPO3\CMS\Extbase\Core\Bootstrap->run
     extensionName = PowermailCond
-    vendorName = In2code
     controller = Condition
     pluginName = Pi1
+    features.requireCHashArgumentForActionArguments = 0
   }
 }

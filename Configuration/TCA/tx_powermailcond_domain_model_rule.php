@@ -21,7 +21,7 @@ return [
             'starttime' => 'starttime',
             'endtime' => 'endtime',
         ],
-        'iconfile' => 'EXT:powermail_cond/Resources/Public/Icons/tx_powermailcond_domain_model_rule.gif',
+        'iconfile' => 'EXT:powermail_cond/Resources/Public/Icons/tx_powermailcond_domain_model_rule.svg',
         'hideTable' => 1,
     ],
     'types' => [
@@ -83,7 +83,7 @@ return [
             'label' => 'LLL:EXT:powermail_cond/Resources/Private/Language/locallang_db.xlf:tx_powermailcond_rules.title',
             'config' => [
                 'type' => 'input',
-                'size' => '30',
+                'size' => 30,
                 'default' => '',
             ],
         ],
@@ -196,8 +196,8 @@ return [
             'label' => 'LLL:EXT:powermail_cond/Resources/Private/Language/locallang_db.xlf:tx_powermailcond_rules.condstring',
             'config' => [
                 'type' => 'text',
-                'cols' => '30',
-                'rows' => '2',
+                'cols' => 30,
+                'rows' => 2,
                 'default' => '',
             ],
             // show only if ops value is greater than 1
@@ -221,7 +221,7 @@ return [
                 'size' => 1,
                 'maxitems' => 1,
                 'default' => 0,
-                'eval' => 'int',
+                
             ],
             'displayCond' => 'FIELD:ops:IN:8,9',
         ],

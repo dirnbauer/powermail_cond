@@ -8,10 +8,7 @@ use In2code\Powermail\Domain\Model\Field;
 use In2code\Powermail\Domain\Model\Page;
 use Throwable;
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
-use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Show a note in the Condition Container in the Backend if the number of fields in the chosen form exceeds a threshold.
@@ -20,15 +17,9 @@ class Note extends AbstractFormElement
 {
     protected const FIELD_LIMIT = 30;
 
-    protected LanguageService $languageService;
-
-    protected ConnectionPool $connectionPool;
-
-    public function __construct(NodeFactory $nodeFactory, array $data)
-    {
-        $this->languageService = $GLOBALS['LANG'];
-        $this->connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
-    }
+    public function __construct(
+        private readonly ConnectionPool $connectionPool,
+    ) {}
 
     /**
      * @throws Throwable
@@ -37,10 +28,11 @@ class Note extends AbstractFormElement
     {
         $content = '';
         if ($this->formHasTooManyFields()) {
-            $title = $this->languageService->sL(
+            $languageService = $this->getLanguageService();
+            $title = $languageService->sL(
                 'LLL:EXT:powermail_cond/Resources/Private/Language/locallang_db.xlf:tx_powermailcond_conditioncontainer.note.title'
             );
-            $description = $this->languageService->sL(
+            $description = $languageService->sL(
                 'LLL:EXT:powermail_cond/Resources/Private/Language/locallang_db.xlf:tx_powermailcond_conditioncontainer.note.description'
             );
             $content = '<div class="alert alert-warning"><strong>' . $title . '</strong>' . $description . '</div>';
@@ -73,6 +65,6 @@ class Note extends AbstractFormElement
               ->andWhere($query->expr()->eq('f.deleted', $query->createNamedParameter(0)))
               ->andWhere($query->expr()->eq('p.hidden', $query->createNamedParameter(0)))
               ->andWhere($query->expr()->eq('p.deleted', $query->createNamedParameter(0)));
-        return $query->executeQuery()->fetchOne();
+        return (int)$query->executeQuery()->fetchOne();
     }
 }

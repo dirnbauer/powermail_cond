@@ -8,7 +8,10 @@ use In2code\Powermail\Domain\Model\Field;
 use In2code\Powermail\Domain\Model\Form;
 use In2code\Powermail\Domain\Model\Page;
 use In2code\PowermailCond\Domain\Comparator\Comparison;
+use In2code\PowermailCond\Event\EvaluateRuleEvent;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
 
 class Rule extends AbstractEntity
@@ -23,6 +26,12 @@ class Rule extends AbstractEntity
     public const OPERATOR_LESS_THAN = 7;
     public const OPERATOR_CONTAINS_VALUE_FROM_FIELD = 8;
     public const OPERATOR_NOT_CONTAINS_VALUE_FROM_FIELD = 9;
+
+    /**
+     * Operator values from here upwards belong to extensions that add their own operators.
+     * They are evaluated by a listener to {@see EvaluateRuleEvent} instead of by {@see Comparison}.
+     */
+    public const OPERATOR_THIRD_PARTY_OFFSET = 100;
 
     protected string $title = '';
 
@@ -44,7 +53,7 @@ class Rule extends AbstractEntity
         $this->title = $title;
     }
 
-    public function getStartField(): Field
+    public function getStartField(): ?Field
     {
         return $this->startField;
     }
@@ -74,7 +83,7 @@ class Rule extends AbstractEntity
         $this->condString = $condString;
     }
 
-    public function getEqualField(): Field
+    public function getEqualField(): ?Field
     {
         return $this->equalField;
     }
@@ -97,6 +106,12 @@ class Rule extends AbstractEntity
                     isset($field, $this->startField)
                     && $field->getUid() === $this->startField->getUid()
                 ) {
+                    if ($this->ops >= self::OPERATOR_THIRD_PARTY_OFFSET) {
+                        if ($this->evaluateThirdPartyOperator($form, $field)) {
+                            return true;
+                        }
+                        continue;
+                    }
                     $comparison = new Comparison($this->ops);
                     if ($comparison->evaluate($field, $this->condString, $this->equalField)) {
                         return true;
@@ -105,5 +120,16 @@ class Rule extends AbstractEntity
             }
         }
         return false;
+    }
+
+    /**
+     * Hand an operator this extension does not know about to whoever registered it.
+     */
+    protected function evaluateThirdPartyOperator(Form $form, Field $startField): bool
+    {
+        $event = new EvaluateRuleEvent($this, $form, $startField, $this->condString, $this->equalField);
+        GeneralUtility::makeInstance(EventDispatcherInterface::class)->dispatch($event);
+
+        return $event->getResult() ?? false;
     }
 }
