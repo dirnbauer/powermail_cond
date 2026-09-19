@@ -65,7 +65,7 @@ class ConditionService
 
         $arguments = [];
         // Use the forms non-localized UID, because the field is l10n_mode exclude
-        $conditionContainer = $this->conditionContainerRepository->findOneByForm($form->getUid());
+        $conditionContainer = $this->conditionContainerRepository->findOneByFormUid($form->getUid());
         if ($conditionContainer !== null) {
             $arguments = $conditionContainer->applyConditions($form, $powermailArguments);
             $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.user')->setKey('ses', 'tx_powermail_cond', $arguments);

@@ -1,0 +1,4 @@
+name: in2code/powermail-cond
+label: 'Powermail Conditions'
+dependencies:
+  - in2code/powermail-main
