@@ -11,13 +11,17 @@ use In2code\Powermail\Utility\ConfigurationUtility;
 use In2code\PowermailCond\Domain\Model\Condition;
 use Throwable;
 
+/**
+ * powermail's input validator, minus the mandatory check for fields a condition has hidden.
+ *
+ * Replaces In2code\Powermail\Domain\Validator\InputValidator (see ext_localconf.php). It has
+ * no constructor of its own: TYPO3 v14 creates Extbase validators without arguments and hands them
+ * their options through setOptions() afterwards (ValidatorResolver::createValidator()), and
+ * powermail's AbstractValidator constructor takes none either — it only loads the TypoScript
+ * settings.
+ */
 class ConditionAwareValidator extends InputValidator
 {
-    public function __construct(array $options = [])
-    {
-        parent::__construct($options);
-    }
-
     /**
      * Validate a single field
      *
