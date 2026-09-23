@@ -33,6 +33,12 @@
 		"issues": "https://github.com/dirnbauer/powermail_cond/issues",
 		"source": "https://github.com/dirnbauer/powermail_cond"
 	},
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "https://github.com/dirnbauer/powermail.git"
+		}
+	],
 	"require": {
 		"php": "^8.4",
 		"ext-json": "*",
