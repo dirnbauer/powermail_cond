@@ -28,7 +28,8 @@ final class EvaluateRuleEvent
         private readonly Field $startField,
         private readonly string $valueToMatch,
         private readonly ?Field $equalField,
-    ) {}
+    ) {
+    }
 
     public function getRule(): Rule
     {

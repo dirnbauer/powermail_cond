@@ -221,7 +221,7 @@ return [
                 'size' => 1,
                 'maxitems' => 1,
                 'default' => 0,
-                
+
             ],
             'displayCond' => 'FIELD:ops:IN:8,9',
         ],
