@@ -4,6 +4,43 @@ Conditions for TYPO3 extension powermail.
 While a user fills out a form, some fields should disappear, while
 others should be visible.
 
+## Fork notes
+
+This is webconsulting's fork of [in2code-de/powermail_cond](https://github.com/in2code-de/powermail_cond). in2code
+offers TYPO3 14 support only through a paid early-access programme, so this fork ports the public `typo3-v13` line
+to TYPO3 14.3 LTS. The Composer package name stays `in2code/powermail_cond`. It needs a TYPO3 14 powermail such as
+[dirnbauer/powermail](https://github.com/dirnbauer/powermail).
+
+What differs from upstream:
+
+- **Branch `typo3-v14`** is upstream `typo3-v13` (13.1.2 plus its later fixes) merged into the TYPO3 14 port.
+  Page TSconfig loads from `Configuration/page.tsconfig`, and the FormEngine note element uses constructor
+  injection. The conditions ViewHelper reads the request from the Fluid 5 rendering context. The AJAX endpoint
+  is `USER_INT`. The repository uses `findOneByFormUid()`, because v14 removed the magic `findOneByForm()`
+  finder. Record icons are v14 SVGs.
+- **Site set** `in2code/powermail-cond` ("Powermail Conditions"). The static template "Main TypoScript" still works
+  for sites without site sets; both load `Configuration/TypoScript/setup.typoscript`.
+- **Rule-operator extension point**: a rule whose operator is `Rule::OPERATOR_THIRD_PARTY_OFFSET` (100) or higher is
+  evaluated by listeners of `In2code\PowermailCond\Event\EvaluateRuleEvent` instead of by this extension. This is how
+  [webconsulting/webcon-jev](https://github.com/dirnbauer/typo3-webcon-jev) adds its operators.
+- PHP ^8.4 and TYPO3 ^14.3; Composer installation only (no `ext_emconf.php`, no TER release workflow).
+
+Installing the fork:
+
+```json
+{
+    "repositories": [
+        {"type": "vcs", "url": "https://github.com/dirnbauer/powermail_cond.git"},
+        {"type": "vcs", "url": "https://github.com/dirnbauer/powermail.git"}
+    ],
+    "require": {"in2code/powermail_cond": "dev-typo3-v14"}
+}
+```
+
+The fork has no release tags, so require the branch; `composer.lock` pins the exact commit. A branch constraint
+cannot resolve to an upstream tag. The `upstream` remote is fetched with `--no-tags`, and new upstream commits are
+merged, never rebased.
+
 ## Screenshots
 
 ![Example form with conditions](Documentation/Images/screenshot_powermail_cond_frontend.png "Example form with conditions")
