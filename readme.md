@@ -23,6 +23,9 @@ What differs from upstream:
 - **Rule-operator extension point**: a rule whose operator is `Rule::OPERATOR_THIRD_PARTY_OFFSET` (100) or higher is
   evaluated by listeners of `In2code\PowermailCond\Event\EvaluateRuleEvent` instead of by this extension. This is how
   [webconsulting/webcon-jev](https://github.com/dirnbauer/typo3-webcon-jev) adds its operators.
+- **`powermailcond:processed` DOM event**: after the frontend script has applied a condition response, it dispatches
+  this bubbling event on the form with the whole response as `event.detail`. Anything a middleware added to the JSON
+  can be read there without a second request. webcon-jev's debug panel uses it.
 - PHP ^8.4 and TYPO3 ^14.3; Composer installation only (no `ext_emconf.php`, no TER release workflow).
 
 Installing the fork:

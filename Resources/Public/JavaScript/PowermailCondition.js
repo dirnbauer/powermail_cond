@@ -194,6 +194,10 @@ class PowermailCondition {
         fieldset.style.opacity = 1;
       }
     });
+
+    // Tell the page the conditions are applied, with the whole response. Other extensions can
+    // read what the endpoint added to it without a second request or wrapping fetch().
+    this.#form.dispatchEvent(new CustomEvent('powermailcond:processed', {bubbles: true, detail: data}));
   };
 
   #enableAllFields() {
