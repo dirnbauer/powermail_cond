@@ -26,6 +26,11 @@ What differs from upstream:
 - **`powermailcond:processed` DOM event**: after the frontend script has applied a condition response, it dispatches
   this bubbling event on the form with the whole response as `event.detail`. Anything a middleware added to the JSON
   can be read there without a second request. webcon-jev's debug panel uses it.
+- **Submissions wait for the condition endpoint**: a submit waits (up to 10 s) for the pending condition request
+  instead of a fixed 50 ms, fields a condition disabled stay disabled while a request runs, only the answer to the
+  latest request is applied, a hidden submit button is disabled so Enter cannot send the form past it, and a page
+  restored from the back/forward cache asks again instead of adding a second set of listeners. Upstream's timing was
+  made for conditions PHP answers at once; a condition that asks an external service lost these races.
 - PHP ^8.4 and TYPO3 ^14.3; Composer installation only (no `ext_emconf.php`, no TER release workflow).
 
 Installing the fork:

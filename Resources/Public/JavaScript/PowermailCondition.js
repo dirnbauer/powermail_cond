@@ -19,6 +19,26 @@ class PowermailCondition {
    */
   #excludedFieldsSelector = 'data-powermail-cond-excluded-fields';
 
+  /**
+   * The latest request to the condition endpoint; settles once its answer is applied or failed.
+   */
+  #pending = null;
+
+  /**
+   * Numbers the requests, so an answer that arrives after a newer request was sent is dropped.
+   */
+  #sequence = 0;
+
+  /**
+   * Set while a submission waits for the endpoint, so a second click does not send the form twice.
+   */
+  #submitting = false;
+
+  /**
+   * How long a submission waits for a pending condition request before it goes ahead anyway.
+   */
+  static PENDING_TIMEOUT = 10000;
+
   constructor(form) {
     this.#form = form;
     this.#form.powermailConditions = this;
@@ -45,21 +65,28 @@ class PowermailCondition {
   }
 
   /**
-   * Prevents a specific race condition when submitting forms
+   * Ask again with the values the form holds now, e.g. after the back/forward cache restored it.
+   */
+  refresh = function () {
+    this.#submitting = false;
+    this.#sendFormValuesToPowermailCond();
+  }
+
+  /**
+   * Submits only once the conditions match what was entered last
    *
    * Technical background:
-   * When a user's first action is to focus a field, enter a value, and immediately
-   * click submit, it can cause problems. This sequence triggers #sendFormValuesToPowermailCond
-   * and #enableAllFields, but the form submission cancels the network request to the
-   * condition endpoint. As a result, all fields get enabled and transmitted for processing.
+   * A visitor's last change (typing into a field, then clicking submit) sends the form to the
+   * condition endpoint, and its answer decides which fields are hidden and disabled, and therefore
+   * not sent. Submitting before that answer arrives sends the fields as they were before the
+   * change. The endpoint can take a while - a condition may ask an external service - so waiting
+   * a fixed 50ms was not enough.
    *
    * How it works:
-   * This listener checks if any form element is currently focused. If so, it:
-   * 1. Blurs the focused input first
-   * 2. Waits a brief moment (50ms)
-   * 3. Then submits the form
-   *
-   * This ensures field processing completes properly before submission, avoiding the race condition.
+   * 1. A submission another listener refused (e.g. client-side validation) stays refused
+   * 2. The focused field is blurred, which fires "change" and asks the endpoint again
+   * 3. The pending request is awaited, for at most PENDING_TIMEOUT
+   * 4. Then the form is validated and submitted
    */
   #submitListener() {
     // don't setup race-condition listener for AJAX forms
@@ -68,32 +95,37 @@ class PowermailCondition {
     }
 
     this.#form.addEventListener('submit', (event) => {
-      event.preventDefault();
-
-      if (document.activeElement && document.activeElement.tagName) {
-        const activeElement = document.activeElement;
-        const tagName = activeElement.tagName.toLowerCase();
-        if ((tagName === 'input' || tagName === 'textarea' || tagName === 'select') &&
-          this.#form.contains(activeElement)) {
-          activeElement.blur();
-
-          setTimeout(() => {
-            if (this.#hasValidationErrors()) {
-              return;
-            }
-
-            this.#form.submit();
-          }, 50);
-          return;
-        }
+      if (event.defaultPrevented) {
+        return;
       }
-
-      if (this.#hasValidationErrors()) {
+      event.preventDefault();
+      if (this.#submitting) {
         return;
       }
 
-      this.#form.submit();
+      const activeElement = document.activeElement;
+      if (activeElement && activeElement.tagName && this.#form.contains(activeElement)) {
+        const tagName = activeElement.tagName.toLowerCase();
+        if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+          activeElement.blur();
+        }
+      }
+
+      this.#submitting = true;
+      this.#afterPendingRequest().then(() => {
+        if (this.#hasValidationErrors()) {
+          this.#submitting = false;
+          return;
+        }
+
+        this.#form.submit();
+      });
     });
+  }
+
+  #afterPendingRequest() {
+    const timeout = new Promise((resolve) => setTimeout(resolve, PowermailCondition.PENDING_TIMEOUT));
+    return Promise.race([this.#pending || Promise.resolve(), timeout]);
   }
 
   /**
@@ -126,8 +158,7 @@ class PowermailCondition {
 
   #sendFormValuesToPowermailCond () {
     const that = this;
-    that.#enableAllFields();
-    const dataToSend = new FormData(this.#form);
+    const dataToSend = this.#collectFormValues();
 
     if (this.#form.hasAttribute(this.#excludedFieldsSelector)) {
       // gather fields that should be excluded
@@ -140,9 +171,14 @@ class PowermailCondition {
       });
     }
 
-    fetch(this.#getAjaxUri(), {body: dataToSend, method: 'post'})
+    const sequence = ++this.#sequence;
+    this.#pending = fetch(this.#getAjaxUri(), {body: dataToSend, method: 'post'})
       .then((resp) => resp.json())
       .then(function(data) {
+        if (sequence !== that.#sequence) {
+          // A newer request is on its way, and its answer describes the form as it is now.
+          return;
+        }
         if (data.loops > data.loopLimit) {
           console.log('Too much loops reached by parsing conditions and rules. Check for conflicting conditions.');
         } else {
@@ -200,11 +236,17 @@ class PowermailCondition {
     this.#form.dispatchEvent(new CustomEvent('powermailcond:processed', {bubbles: true, detail: data}));
   };
 
-  #enableAllFields() {
-    const fields = this.#form.querySelectorAll('[disabled="disabled"]');
-    fields.forEach((field) => {
-      field.removeAttribute('disabled');
-    });
+  /**
+   * Every value, including those of fields a condition disabled: the endpoint needs them to decide.
+   * The fields are disabled again straight away - left enabled while the request runs, they would
+   * be sent by a submission in the meantime although they are hidden.
+   */
+  #collectFormValues() {
+    const disabledFields = this.#form.querySelectorAll('[disabled="disabled"]');
+    disabledFields.forEach((field) => field.removeAttribute('disabled'));
+    const dataToSend = new FormData(this.#form);
+    disabledFields.forEach((field) => field.setAttribute('disabled', 'disabled'));
+    return dataToSend;
   };
 
   #getFieldsFromForm() {
@@ -227,6 +269,7 @@ class PowermailCondition {
     let wrappingContainer = this.#getWrappingContainerByMarkerName(fieldMarker);
     if (wrappingContainer !== null) {
       PowermailCondition.showElement(wrappingContainer);
+      wrappingContainer.querySelectorAll('[type="submit"]').forEach((button) => button.removeAttribute('disabled'));
     }
     let field = this.#getFieldByMarker(fieldMarker);
     if (field !== null) {
@@ -239,6 +282,9 @@ class PowermailCondition {
     let wrappingContainer = this.#getWrappingContainerByMarkerName(fieldMarker);
     if (wrappingContainer !== null) {
       PowermailCondition.hideElement(wrappingContainer);
+      // A submit button has no field name to be found by, and a hidden one still sends the form
+      // when Enter is pressed in a field (implicit submission) - unless it is disabled.
+      wrappingContainer.querySelectorAll('[type="submit"]').forEach((button) => button.setAttribute('disabled', 'disabled'));
     }
     let field = this.#getFieldByMarker(fieldMarker);
     if (field !== null) {
@@ -346,6 +392,12 @@ class PowermailCondition {
 window.addEventListener('pageshow', () => {
   const forms = document.querySelectorAll('.powermail_form');
   forms.forEach(function(form) {
+    // Restored from the back/forward cache, the form still has its listeners: a second set would
+    // send every change twice and submit twice. Ask again with the restored values instead.
+    if (form.powermailConditions instanceof PowermailCondition) {
+      form.powermailConditions.refresh();
+      return;
+    }
     let powermailConditions = new PowermailCondition(form);
     powermailConditions.initialize();
   });
