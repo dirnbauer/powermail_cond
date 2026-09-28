@@ -23,44 +23,37 @@ use Throwable;
 class ConditionAwareValidator extends InputValidator
 {
     /**
-     * Validate a single field
+     * Validate a single field, unless a condition has hidden it
      *
      * @param mixed $value
      * @throws Throwable
      */
     protected function isValidFieldInMandatoryValidation(Field $field, $value): void
     {
-        $arguments = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.user')->getSessionData('tx_powermail_cond');
         $parentPage = $field->getPage();
-        if ($parentPage === null) {
+        $form = $parentPage?->getForm();
+        if ($parentPage === null || $form === null) {
             return;
         }
-        $form = $parentPage->getForm();
-        $formUid = $form->getUid();
-        $pageUid = $parentPage->getUid();
-        $marker = $field->getMarker();
 
+        // With the element browser a field is not tied to one page, so look for it on each of them.
+        $pageUids = [(int)$parentPage->getUid()];
         if (ConfigurationUtility::isReplaceIrreWithElementBrowserActive()) {
+            $pageUids = [];
             /** @var Page $page */
             foreach ($form->getPages() as $page) {
-                /** @var Field $field */
-                foreach ($page->getFields() as $field) {
-                    if (!empty($arguments[$formUid][$pageUid][$marker][Condition::INDEX_ACTION])) {
-                        if ($arguments[$formUid][$pageUid][$marker][Condition::INDEX_ACTION] ===
-                            Condition::ACTION_HIDE_STRING) {
-                            return;
-                        }
-                    }
-                }
-            }
-        } else {
-            if (!empty($arguments[Condition::INDEX_TODO][$formUid][$pageUid][$marker][Condition::INDEX_ACTION])) {
-                if ($arguments[Condition::INDEX_TODO][$formUid][$pageUid][$marker][Condition::INDEX_ACTION] ===
-                    Condition::ACTION_HIDE_STRING) {
-                    return;
-                }
+                $pageUids[] = (int)$page->getUid();
             }
         }
+
+        $arguments = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.user')->getSessionData('tx_powermail_cond');
+        $actions = is_array($arguments) ? ($arguments[Condition::INDEX_TODO][(int)$form->getUid()] ?? []) : [];
+        foreach ($pageUids as $pageUid) {
+            if (($actions[$pageUid][$field->getMarker()][Condition::INDEX_ACTION] ?? null) === Condition::ACTION_HIDE_STRING) {
+                return;
+            }
+        }
+
         parent::isValidFieldInMandatoryValidation($field, $value);
     }
 }

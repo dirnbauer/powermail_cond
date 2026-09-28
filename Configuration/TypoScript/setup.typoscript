@@ -45,3 +45,9 @@ powermailCondition {
     features.requireCHashArgumentForActionArguments = 0
   }
 }
+
+# Tells the form templates that powermail_cond is here. A theme that renders the conditions'
+# starting state with the page ({pc:conditions(form: form)} into #form-{uid}-actions) can check
+# {settings.powermailCond.prerender}: the fields a condition hides are then hidden from the first
+# paint, and the frontend script applies that state instead of asking the endpoint on load.
+plugin.tx_powermail.settings.setup.powermailCond.prerender = 1

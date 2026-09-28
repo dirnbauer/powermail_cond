@@ -31,6 +31,15 @@ What differs from upstream:
   latest request is applied, a hidden submit button is disabled so Enter cannot send the form past it, and a page
   restored from the back/forward cache asks again instead of adding a second set of listeners. Upstream's timing was
   made for conditions PHP answers at once; a condition that asks an external service lost these races.
+- **Step buttons wait too**: "Next" clicked while a condition request is pending is held back and repeated once the
+  answer is applied, so the next step never shows the previous answer's fields first.
+- **Starting state rendered with the page**: the TypoScript sets `settings.powermailCond.prerender`, and a theme that
+  checks it can render `{pc:conditions(form: form)}` into `#form-{uid}-actions`. The script then applies that state as
+  soon as it runs (not at `pageshow`, which waits for every image) and sends no request on load.
+- **Session holds actions only**: the session keeps each form's actions, per form, which is all the validator reads,
+  and not the values the visitor typed. The element-browser branch of the condition-aware validator reads the right
+  key and checks the field it was given. Page-level conditions find a step tab by `data-powermail-fieldset`, not
+  only on a `.btn`.
 - PHP ^8.4 and TYPO3 ^14.3; Composer installation only (no `ext_emconf.php`, no TER release workflow).
 
 Installing the fork:

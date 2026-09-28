@@ -35,6 +35,16 @@ class PowermailCondition {
   #submitting = false;
 
   /**
+   * True from sending a request until the answer to the latest one is applied or has failed.
+   */
+  #pendingOpen = false;
+
+  /**
+   * The values the form started with, to notice values the browser restores afterwards.
+   */
+  #startValues = '';
+
+  /**
    * How long a submission waits for a pending condition request before it goes ahead anyway.
    */
   static PENDING_TIMEOUT = 10000;
@@ -61,7 +71,9 @@ class PowermailCondition {
     }
 
     that.#fieldListener();
+    that.#stepListener();
     that.#submitListener();
+    that.#startValues = that.#serializeValues();
   }
 
   /**
@@ -70,6 +82,21 @@ class PowermailCondition {
   refresh = function () {
     this.#submitting = false;
     this.#sendFormValuesToPowermailCond();
+  }
+
+  /**
+   * Ask again only when the form holds other values than it started with (the browser restored
+   * earlier input), or when the page came back from the back/forward cache.
+   */
+  refreshIfChanged = function (restoredFromCache) {
+    if (restoredFromCache || this.#serializeValues() !== this.#startValues) {
+      this.refresh();
+    }
+  }
+
+  #serializeValues() {
+    const values = [...this.#collectFormValues().entries()].filter((entry) => typeof entry[1] === 'string');
+    return JSON.stringify(values);
   }
 
   /**
@@ -123,6 +150,30 @@ class PowermailCondition {
     });
   }
 
+  /**
+   * Step buttons wait for a pending answer, too
+   *
+   * Leaving a field for "Next" fires "change" and asks the endpoint about what was just entered.
+   * Switching steps before that answer arrives shows the next step as the previous answer left
+   * it, and it reshuffles a moment later. So a step click while a request is pending is held
+   * back and repeated once the answer is applied.
+   */
+  #stepListener() {
+    this.#form.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('[data-powermail-morestep-show]') : null;
+      if (button === null || !this.#pendingOpen || button.dataset.powermailCondReleased === 'true') {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.#afterPendingRequest().then(() => {
+        button.dataset.powermailCondReleased = 'true';
+        button.click();
+        delete button.dataset.powermailCondReleased;
+      });
+    }, true);
+  }
+
   #afterPendingRequest() {
     const timeout = new Promise((resolve) => setTimeout(resolve, PowermailCondition.PENDING_TIMEOUT));
     return Promise.race([this.#pending || Promise.resolve(), timeout]);
@@ -172,6 +223,7 @@ class PowermailCondition {
     }
 
     const sequence = ++this.#sequence;
+    this.#pendingOpen = true;
     this.#pending = fetch(this.#getAjaxUri(), {body: dataToSend, method: 'post'})
       .then((resp) => resp.json())
       .then(function(data) {
@@ -187,6 +239,11 @@ class PowermailCondition {
       })
       .catch(function(error) {
         console.log(error);
+      })
+      .finally(function() {
+        if (sequence === that.#sequence) {
+          that.#pendingOpen = false;
+        }
       });
   };
 
@@ -362,7 +419,8 @@ class PowermailCondition {
   };
 
   #getMoreStepToggleByUid(pageUid) {
-    return this.#form.querySelector(`.btn[data-powermail-fieldset="${pageUid}"]`)
+    // The step tab of that page, whatever classes a template gives it (not every theme uses .btn).
+    return this.#form.querySelector(`[data-powermail-fieldset="${pageUid}"]`)
   }
 
   #getFieldwrappingContainerByMarker(fieldMarker) {
@@ -389,13 +447,23 @@ class PowermailCondition {
 // of browsers, so when someone returns to a already filled out form,
 // the values get checked properly instead of sendFormValuesToPowermailCond
 // receiving a practically empty initial form state.
-window.addEventListener('pageshow', () => {
+// A form whose starting state was rendered with the page (#form-{uid}-actions) gets it straight
+// away - the script is deferred, so the document is parsed - instead of at "pageshow", which
+// waits for every image; until then the fields a condition hides would be visible.
+document.querySelectorAll('.powermail_form').forEach(function(form) {
+  const formUid = form.querySelector('input.powermail_form_uid')?.value;
+  if (formUid && document.querySelector('#form-' + formUid + '-actions') !== null) {
+    new PowermailCondition(form).initialize();
+  }
+});
+
+window.addEventListener('pageshow', (event) => {
   const forms = document.querySelectorAll('.powermail_form');
   forms.forEach(function(form) {
-    // Restored from the back/forward cache, the form still has its listeners: a second set would
-    // send every change twice and submit twice. Ask again with the restored values instead.
+    // Started early, or restored from the back/forward cache with its listeners in place: a second
+    // set would send every change twice and submit twice. Ask again only if the values changed.
     if (form.powermailConditions instanceof PowermailCondition) {
-      form.powermailConditions.refresh();
+      form.powermailConditions.refreshIfChanged(event.persisted);
       return;
     }
     let powermailConditions = new PowermailCondition(form);

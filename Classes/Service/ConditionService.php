@@ -8,6 +8,7 @@ use In2code\Powermail\Domain\Model\Field;
 use In2code\Powermail\Domain\Model\Form;
 use In2code\Powermail\Domain\Model\Page;
 use In2code\Powermail\Domain\Repository\FormRepository;
+use In2code\PowermailCond\Domain\Model\Condition;
 use In2code\PowermailCond\Domain\Repository\ConditionContainerRepository;
 use In2code\PowermailCond\Exception\MissingPowermailParameterException;
 use In2code\PowermailCond\Exception\UnsupportedVariableTypeException;
@@ -68,10 +69,26 @@ class ConditionService
         $conditionContainer = $this->conditionContainerRepository->findOneByFormUid($form->getUid());
         if ($conditionContainer !== null) {
             $arguments = $conditionContainer->applyConditions($form, $powermailArguments);
-            $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.user')->setKey('ses', 'tx_powermail_cond', $arguments);
-            unset($arguments['backup'], $arguments['field']);
+            unset($arguments[Condition::INDEX_BACKUP], $arguments['field']);
+            $this->rememberActions((int)$form->getUid(), $arguments);
         }
 
         return $arguments;
+    }
+
+    /**
+     * Keep what the validator needs at submit time to skip hidden fields: this form's actions.
+     *
+     * Not the values: those are what the visitor typed (names, addresses, whole letters) and have no
+     * business in the session. And per form, so another form open in a second tab does not replace
+     * this one's actions.
+     */
+    private function rememberActions(int $formUid, array $arguments): void
+    {
+        $frontendUser = $GLOBALS['TYPO3_REQUEST']->getAttribute('frontend.user');
+        $stored = $frontendUser->getSessionData('tx_powermail_cond');
+        $actions = is_array($stored[Condition::INDEX_TODO] ?? null) ? $stored[Condition::INDEX_TODO] : [];
+        $actions[$formUid] = $arguments[Condition::INDEX_TODO][$formUid] ?? [];
+        $frontendUser->setKey('ses', 'tx_powermail_cond', [Condition::INDEX_TODO => $actions]);
     }
 }
